@@ -28,13 +28,15 @@
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/satellite.js@2.0.0/dist/satellite.min.js"></script>
   <script>
-    const satelliteId = 6073; // NORAD ID for Kosmos 482
-    const apiKey = 'JMDEN4-RPVCWQ-2RXKK6-5H6U'; // Replace with your key
-    const observerLat = 0;
-    const observerLng = 0;
-    const observerAlt = 0;
+    // TLE data for Kosmos 482 (NORAD ID: 6073)
+    const tleData = [
+      "1 6073U 72059B   23106.78736111  .00004275  00000-0  81113-4 0  9996",
+      "2 6073  65.9737 173.6900 0006741 116.2076 243.8956 14.90558239719725"
+    ];
 
+    // Initialize the map with a default view
     const map = L.map('map').setView([0, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 6,
@@ -42,21 +44,28 @@
 
     const marker = L.marker([0, 0]).addTo(map).bindPopup('Kosmos 482');
 
-    async function fetchSatellitePosition() {
-      try {
-        const url = `https://api.n2yo.com/rest/v1/satellite/positions/${satelliteId}/${observerLat}/${observerLng}/${observerAlt}/1/&apiKey=${apiKey}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        const satPos = data.positions[0];
-        marker.setLatLng([satPos.satlatitude, satPos.satlongitude]);
-        map.setView([satPos.satlatitude, satPos.satlongitude], 3);
-      } catch (err) {
-        console.error('Error fetching satellite data:', err);
-      }
+    // Function to update satellite position
+    async function updateSatellitePosition() {
+      const satrec = satellite.twoline2satrec(tleData[0], tleData[1]);
+      
+      // Get the current position (use the current time)
+      const currentTime = new Date();
+      const positionAndVelocity = satellite.propagate(satrec, currentTime);
+      const positionEci = positionAndVelocity.position;
+
+      // Convert ECI position to Latitude/Longitude
+      const positionGd = satellite.eciToGeodetic(positionEci, 0);
+      const latitude = satellite.degreesLat(positionGd.latitude);
+      const longitude = satellite.degreesLong(positionGd.longitude);
+
+      // Update marker position
+      marker.setLatLng([latitude, longitude]);
+      map.setView([latitude, longitude], 3);
     }
 
-    setInterval(fetchSatellitePosition, 5000);
-    fetchSatellitePosition();
+    // Update position every 5 seconds
+    setInterval(updateSatellitePosition, 5000);
+    updateSatellitePosition(); // Initial update
   </script>
 </body>
 </html>
